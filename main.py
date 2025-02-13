@@ -4,6 +4,13 @@ import os
 from utils.load import load_df
 
 
+# XXX: not sure to be using smooth-ed labels or not
+SCORING = {"E": 3.0,  # exact
+           "S": 2.0,  # substitute
+           "C": 1.0,  # complementary
+           "I": 0.0}  # irrelevant
+
+
 def main(**kwargs):
     """ input: paths to  dfs """
     df_examples = load_df(kwargs["ex"], "parquet")
@@ -21,8 +28,15 @@ def main(**kwargs):
                          left_on=["product_locale", "product_id"],
                          right_on=["product_locale", "product_id"])
     
-    print(df_joined.columns)
+    # print(df_joined.columns)
 
+    print(df_joined.columns)
+    df_joined_small = df_joined[df_joined["small_version"] == 1]
+    distil = df_joined_small[["esci_label"]]
+
+    # print(distil[distil["query_id"] == 2])
+
+    print(distil.value_counts())
 
 
 if __name__ == "__main__":
