@@ -12,3 +12,4 @@ ipython_config.py
 # Environments
 .env
 .venv
+*.csv
