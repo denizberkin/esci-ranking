@@ -1,6 +1,7 @@
 # dir
 __pycache__/
 shopping_queries/
+formatted_esci/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -12,4 +13,7 @@ ipython_config.py
 # Environments
 .env
 .venv
+
+
 *.csv
+*.parquet
