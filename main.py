@@ -100,36 +100,39 @@ def main(**kwargs):
 if __name__ == "__main__":
     ROOT = os.path.join(os.getcwd(), "formatted_esci")
     CSV_ROOT = os.path.join(os.getcwd(), "formatted_csv")
+    if not os.path.exists(CSV_ROOT):
+        os.makedirs(CSV_ROOT)
 
     # examples = os.path.join(ROOT, "dataset_examples.parquet")
     # products = os.path.join(ROOT, "dataset_products.parquet")
     # sources = os.path.join(ROOT, "dataset_sources.csv")
     
-    df = pd.read_csv("formatted_csv/train-00000_sample1000.csv")
+    """df = pd.read_csv("formatted_csv/train-00000_sample1000.csv")
 
     # convert relevance to score 
     df["relevance"] = df["esci_label"].apply(scoring_function,
-                                                    args=(SCORE_MAP,))
+                                                    args=(SCORE_MAP,))"""
     
-    print(df["product_id"].value_counts())
+    """print(df["product_id"].value_counts())
     
     vectorizer = TfidfVectorizer(max_features=300)
     df["query_embed"] = list(vectorizer.fit_transform(df['query']).toarray())
     df["title_embed"] = list(vectorizer.transform(df["product_title"]).toarray())
 
-    print(df["query_embed"][0])
+    print(df["query_embed"][0])"""
 
     
-    """
+    
     filenames = os.listdir(ROOT)
     train_filenames = [os.path.join(ROOT, file) for file in filenames if file.startswith("train")]
     test_filenames = [os.path.join(ROOT, file) for file in filenames if file.startswith("test")]
 
     dataset = read_combine_parquets(train_filenames[:2], t_return="list")
 
+    print(train_filenames[0])
     col2drop = ["product_bullet_point"]
     p2csv(dataset[0], os.path.join(CSV_ROOT, "train-00000_sample1000.csv"), columns_to_drop=col2drop, get_small_us=True, idx=1000)
-    """
+    
     # main(ex=examples, pr=products, src=sources)
 
     # ds = datasets.load_dataset("tasksource/esci")

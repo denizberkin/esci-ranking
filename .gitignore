@@ -2,6 +2,7 @@
 __pycache__/
 shopping_queries/
 formatted_esci/
+formatted_csv/
 
 # Jupyter Notebook
 .ipynb_checkpoints
