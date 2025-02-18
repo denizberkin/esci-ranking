@@ -21,22 +21,6 @@ def remove_punctuation(txt: str):
     return re.sub(r"\s+", " ", txt).strip()
 
 
-def preprocess_pipeline(txt: str):
-    txt = lowercase(txt)
-    print(txt)
-    txt = remove_punctuation(txt)
-    print(txt)
-    txt = remove_whitespace(txt)
-    print(txt)
-    quit()
-
-
-def preprocess_df(df: pd.DataFrame, columns: list):
-    df = df.copy()
-    for col in columns:
-        df[col] = df[col].astype(str).map(preprocess_pipeline)
-    return df
-
 
 def scoring_function(x: str, map: dict) -> float:
     """ """
@@ -53,3 +37,30 @@ def cosine_sim(x):
     return cos
     # cos_sim = lambda row: 1 - cosine(row["query_embed"], row["title_embed"]) if not \
     # np.isnan(cosine(row['query_embed'], row['title_embed'])) else 0
+
+
+def levenshtein(x):
+    a, b = x["query"], x["product_title"]
+    return lev(a, b)
+
+
+def lev(a: str, b: str):
+    la, lb = len(a) + 1, len(b) + 1
+    d = np.zeros((la, lb))
+
+    d[:, 0] = range(la)
+    d[0, :] = range(lb)
+
+    for j in range(1, lb):
+        for i in range(1, la):
+            if b[j - 1] == a[i - 1]:
+                cost = 0
+            else: cost = 1
+
+            d[i, j] = min(d[i - 1, j] + 1,  # delete
+                          min(d[i, j - 1] + 1, # insert
+                              d[i - 1, j - 1] + cost  # sub 
+                          )) 
+            print(a, " ", b)
+            print(d)
+    return d[-1, -1]
