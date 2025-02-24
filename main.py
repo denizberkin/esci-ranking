@@ -12,8 +12,10 @@ from sklearn.model_selection import GroupShuffleSplit, GroupKFold
 from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score, ndcg_score
 import lightgbm as lgbm
 
+from train import train
 from utils.load import load_df
-from utils.preprocess import preprocess_text, levenshtein, levenshtein_norm
+from utils.preprocess import preprocess_text, levenshtein, levenshtein_norm, additional_features
+from utils.preprocess import qf_overlap_ratio, tfidf_cosine_sim, sentence_transformer_cosine_sim
 from utils.variables import SCORE_MAP, ROOT_FOLDER, COLUMNS_TO_PROCESS
 
 pd.options.mode.chained_assignment = None
@@ -49,8 +51,8 @@ if __name__ == "__main__":
     df = process_columns(df)
     df_test = process_columns(df_test)
 
-    # df = combined_column(df, COLUMNS_TO_PROCESS)
-    # df_test = combined_column(df_test, COLUMNS_TO_PROCESS)
+    df = combined_column(df, COLUMNS_TO_PROCESS)
+    df_test = combined_column(df_test, COLUMNS_TO_PROCESS)
 
     df["labels"] = df["esci_label"].apply(lambda x: SCORE_MAP[x])  # map scores
     print("LABEL DIST:\n", df["labels"].value_counts())
@@ -74,31 +76,25 @@ if __name__ == "__main__":
     # take columns that start with "levenshtein"
     levenshtein_cols = [col for col in df.columns if col.startswith("levenshtein")]
 
+    """
     print(df["levenshtein_title"].describe())
     print("\n", df["levenshtein_title"].median())
     print(df["levenshtein_title"].min(), df["levenshtein_title"].max())
-
-
-
     """
-        LABEL DIST:
-    labels
-    3    100820
-    2     49034
-    0     30071
-    1      4428
-    QUERY V TITLE
-    Name: count, dtype: int64
-    count    1000.000000
-    mean        0.804282
-    std         0.071537
-    min         0.425532
-    25%         0.759100
-    50%         0.800000
-    75%         0.855852
-    max         0.982249
-    Name: levenshtein_title, dtype: float64
 
-    0.8
-    0.425531914893617 0.9822485207100592
-    """
+    df = additional_features(df)
+    
+    df, tfidf_col_name = tfidf_cosine_sim(df)
+    df, st_col_name = sentence_transformer_cosine_sim(df)
+    
+    feature_columns = ["levenshtein_title",
+                       "levenshtein_desc",
+                       "token_overlap",
+                       "query_length",
+                       "combined_length",
+                       "length_ratio",
+                       tfidf_col_name,
+                       st_col_name]
+
+    
+    train(df, feature_columns)
