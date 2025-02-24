@@ -8,17 +8,14 @@ import string
 from scipy.spatial.distance import cosine
 
 
-def lowercase(txt: str):
-    return txt.lower()
 
-# def remove_punctuation(txt: str):
-#     return ''.join([w for w in word_tokenize(txt) if w not in string.punctuation])
+def preprocess_text(txt: str):
+    if txt is None:
+        return ""
+    txt = txt.lower()
+    txt = re.sub(r"[^a-z0-9\s+]", "", txt)
+    return txt.strip()
 
-def remove_whitespace(txt: str):
-    return txt
-
-def remove_punctuation(txt: str):
-    return re.sub(r"\s+", " ", txt).strip()
 
 
 
@@ -39,12 +36,7 @@ def cosine_sim(x):
     # np.isnan(cosine(row['query_embed'], row['title_embed'])) else 0
 
 
-def levenshtein(x):
-    a, b = x["query"], x["product_title"]
-    return lev(a, b)
-
-
-def lev(a: str, b: str):
+def levenshtein(a: str, b: str):
     la, lb = len(a) + 1, len(b) + 1
     d = np.zeros((la, lb))
 
@@ -61,6 +53,4 @@ def lev(a: str, b: str):
                           min(d[i, j - 1] + 1, # insert
                               d[i - 1, j - 1] + cost  # sub 
                           )) 
-            print(a, " ", b)
-            print(d)
     return d[-1, -1]
