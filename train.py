@@ -33,8 +33,16 @@ def train(df: pd.DataFrame, feature_columns: list):
         model = lgbm.train(params=MODEL_PARAMS,   # specified Ranking in params
                    train_set=lgbm_train, 
                    valid_sets=[lgbm_valid], 
-                   num_boost_round=1000, 
-                   early_stopping_rounds=10)
+                   num_boost_round=800)
         
-        y_pred = model.predict(x_valid)
-        print(f"FOLD {fold} F1: {f1_score(y_valid, y_pred, average='weighted')}")
+        ndcg_scores = []
+        for qid, group in tqdm(df.iloc[valid_id].groupby("query_id"), desc="Evaluating queries", leave=False):
+            if group.shape[0] < 2:
+                continue
+            y_true = group["labels"].values.reshape(1, -1)
+            x_query = group[feature_columns]
+            y_pred = model.predict(x_query, num_iteration=model.best_iteration).reshape(1, -1)
+            ndcg = ndcg_score(y_true, y_pred, k=3)
+            ndcg_scores.append(ndcg)
+        
+        tqdm.write("Validation NDCG Score for Fold {}: {:.4f}".format(fold + 1, np.mean(ndcg_scores)))
