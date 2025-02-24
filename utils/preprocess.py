@@ -17,13 +17,6 @@ def preprocess_text(txt: str):
     return txt.strip()
 
 
-
-
-def scoring_function(x: str, map: dict) -> float:
-    """ """
-    return map[x]
-
-
 def cosine_sim(x):
     # query - title similarity #  TODO: cosine sim for now, change it to something you have read in the documents maybe
     if np.isnan(cosine(x["query_embed"], x["title_embed"])):
@@ -54,3 +47,7 @@ def levenshtein(a: str, b: str):
                               d[i - 1, j - 1] + cost  # sub 
                           )) 
     return d[-1, -1]
+
+
+def levenshtein_norm(a: str, b: str) -> np.float64:
+    return levenshtein(a, b) / max(max(len(a), len(b)), 1)  # second max in the case of both strings being empty
