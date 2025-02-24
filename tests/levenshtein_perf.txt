@@ -1,0 +1,51 @@
+lev1: self implementation of levenshtein
+lev2: abydos.distance.Levenshtein.dist_abs function
+Averages around 50% speed-up
+
+python -m unittest tests.test_levenshtein
+......
+lev1 took 0.529560 seconds for 10000 iterations
+lev2 took 0.757884 seconds for 10000 iterations
+
+....
+----------------------------------------------------------------------
+Ran 10 tests in 6.286s
+
+OK
+43%
+
+python -m unittest tests.test_levenshtein
+......
+lev1 took 0.445604 seconds for 10000 iterations
+lev2 took 0.678574 seconds for 10000 iterations
+
+....
+----------------------------------------------------------------------
+Ran 10 tests in 5.740s
+
+OK
+52.3%
+
+python -m unittest tests.test_levenshtein
+......
+lev1 took 0.443578 seconds for 10000 iterations
+lev2 took 0.693230 seconds for 10000 iterations
+
+....
+----------------------------------------------------------------------
+Ran 10 tests in 5.850s
+
+OK
+56.3%
+
+python -m unittest tests.test_levenshteint_levenshtein
+......
+lev1 took 0.557371 seconds for 10000 iterations
+lev2 took 0.836227 seconds for 10000 iterations
+
+....
+----------------------------------------------------------------------
+Ran 10 tests in 7.545s
+
+OK
+50%
