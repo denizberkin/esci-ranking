@@ -15,3 +15,12 @@ SCORE_MAP = {
     "Irrelevant": 0   # irrelevant
     }
 
+
+MODEL_PARAMS = {
+    "objective": "lambdarank",
+    "metric": "ndcg",
+    "boosting_type": "gbdt",
+    "num_leaves": 31,
+    "learning_rate": 0.05,
+    "verbose": -1
+    }
