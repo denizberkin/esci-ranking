@@ -42,16 +42,25 @@ def levenshtein_norm(a: str, b: str) -> np.float64:
     return levenshtein(a, b) / max(max(len(a), len(b)), 1)  # second max in the case of both strings being empty
 
 
+def additional_features(df: pd.DataFrame) -> pd.DataFrame:
+    df["token_overlap"] = df.apply(lambda r: qf_overlap_ratio(r["query"], r["combined"]), axis=1)
+    df["query_length"] = df["query"].apply(lambda r: len(r.split()))
+    df["combined_length"] = df["combined"].apply(lambda r: len(r.split()))
+    df["length_ratio"] = df["query_length"] / (df["combined_length"] + 1e-5)  # avoid zerodiv
+    return df
+
+
 def qf_overlap_ratio(query: str, feature: str) -> float:
     """ calculating overlap ratio -IOU- between query and given feature """
     query_tokens = set(query.split())  # split so each token is a word
     feature_tokens = set(feature.split())
-    return len(query_tokens.intersection(feature_tokens)) / (len(query_tokens.union(feature_tokens)) + 1e-5)  # avoid zerodiv
+    return len(query_tokens.intersection(feature_tokens)) / (len(query_tokens.union(feature_tokens)) + 1e-5)  # avoid zerodiv again
 
 
 # re-wrote tfidf to obtain cosine sim matrice - can extract the diagonal to get similarities between query and feature
 def tfidf_cosine_sim(df: pd.DataFrame) -> pd.DataFrame:
     """ calculate cosine similarity between query and features """
+    column_name_to_be_added = "tfidf_cosine_sim"
     tfidf = TfidfVectorizer(ngram_range=(1, 2))
     qf_df = pd.concat([df["query"], df["combined"]], axis=1)
     tfidf.fit(qf_df)
@@ -60,16 +69,17 @@ def tfidf_cosine_sim(df: pd.DataFrame) -> pd.DataFrame:
     combined_tfidf = tfidf.transform(df["combined"])
     sim_matrice = cosine_similarity(query_tfidf, combined_tfidf)
     df["tfidf_cosine_sim"] = np.diag(sim_matrice)
-    return df
+    return df, column_name_to_be_added
 
 
 # default is https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2, 22.7M params, 384 dim
 def sentence_transformer_cosine_sim(df: pd.DataFrame, model_name: str = "all-MiniLM-L6-v2") -> pd.DataFrame:
     """ calculate cosine similarity between query and features using sentence transformer """
+    column_name_to_be_added = "st_cosine_sim"
     model = SentenceTransformer(model_name)
     query_embeddings = model.encode(df["query"].tolist(), show_progress_bar=True)
     combined_embeddings = model.encode(df["combined"].tolist(), show_progress_bar=True)
     sim_matrice = cosine_similarity(query_embeddings, combined_embeddings)
     
     df["st_cosine_sim"] = np.diag(sim_matrice)
-    return df
+    return df, column_name_to_be_added
