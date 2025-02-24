@@ -1,12 +1,16 @@
-""" to run: python -m unittest tests.test_levenshtein """
+""" 
+to run: 
+python -m unittest tests.test_levenshtein 
+"""
 import unittest
+import time
 
 from abydos.distance import Levenshtein
 from utils.preprocess import levenshtein
 
 
-lev1 = Levenshtein().dist_abs
-lev2 = levenshtein
+lev1 = levenshtein
+lev2 = Levenshtein().dist_abs
 
 class TestLevenshteinFunctions(unittest.TestCase):
     def test_identical_strings(self):
@@ -40,6 +44,25 @@ class TestLevenshteinFunctions(unittest.TestCase):
     def test_long_strings(self):
         self.assertEqual(lev1("a" * 1000, "b" * 1000), lev2("a" * 1000, "b" * 1000))
         self.assertEqual(lev1("a" * 1000 + "b", "a" * 999 + "c"), lev2("a" * 1000 + "b", "a" * 999 + "c"))
+
+    def test_performance(self):
+        iterations = 10000  # Adjust this value if needed
+        test_input = ("kitten", "sitting")
+        
+        # Time lev1
+        start_time = time.perf_counter()
+        for _ in range(iterations):
+            lev1(*test_input)
+        time_lev1 = time.perf_counter() - start_time
+        
+        # Time lev2
+        start_time = time.perf_counter()
+        for _ in range(iterations):
+            lev2(*test_input)
+        time_lev2 = time.perf_counter() - start_time
+        
+        print(f"\nlev1 took {time_lev1:.6f} seconds for {iterations} iterations")
+        print(f"lev2 took {time_lev2:.6f} seconds for {iterations} iterations\n")
 
 
 if __name__ == "__main__":
