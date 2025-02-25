@@ -16,6 +16,8 @@ SCORE_MAP = {
     }
 
 
+ST_MODEL_NAME = "all-MiniLM-L6-v2"
+
 MODEL_PARAMS = {
     "objective": "lambdarank",
     "metric": "ndcg",
@@ -24,3 +26,8 @@ MODEL_PARAMS = {
     "learning_rate": 0.05,
     "verbose": -1
     }
+
+COLOURS_TXT_FN = "unique_colours.txt"
+
+with open(COLOURS_TXT_FN, "r") as f:
+    COLOURS = f.read().splitlines()
