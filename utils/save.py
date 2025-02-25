@@ -1,12 +1,29 @@
+import os
 import numpy as np
-import pickle
 import joblib
 
+from utils.variables import EMBEDDING_FOLDER
 
 
-def save_embeddings(embeddings, fn: str):
-    with open(fn, "wb") as f:
-        pickle.dump(embeddings, f)
+def save_embeddings2npy(embeddings: dict):
+    """ input query and feature embeddings as dict, save them to EMBEDDING_FOLDER"""
+    if not os.path.exists(EMBEDDING_FOLDER):
+        os.makedirs(EMBEDDING_FOLDER)
+    
+    np.save(os.path.join(EMBEDDING_FOLDER, "query_embeddings.npy"), embeddings["query"])
+    np.save(os.path.join(EMBEDDING_FOLDER, "feature_embeddings.npy"), embeddings["feature"])
+
+
+def load_embeddings() -> tuple[np.ndarray, np.ndarray]:
+    """ load embeddings from EMBEDDING_FOLDER """
+    query_embeddings = np.load(os.path.join(EMBEDDING_FOLDER, "query_embeddings.npy"), 
+                               allow_pickle=True
+                               )
+    feature_embeddings = np.load(os.path.join(EMBEDDING_FOLDER, "feature_embeddings.npy"), 
+                                 allow_pickle=True
+                                 )
+    return (query_embeddings, feature_embeddings)
+
     
 def save_model(model, fn: str, as_txt: bool = False):
     """ fn: .pkl extension """
@@ -15,8 +32,3 @@ def save_model(model, fn: str, as_txt: bool = False):
             f.write(str(model))
     else:
         joblib.dump(model, fn)
-        
-def save_st_model(st_model, fn: str):
-    st_model.save_pretrained(fn)  # fn has no extension, saves model to folder
-    # load into SentenceTransformer instance
-    
