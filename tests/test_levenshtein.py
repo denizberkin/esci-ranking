@@ -7,10 +7,12 @@ import time
 
 from abydos.distance import Levenshtein
 from utils.preprocess import levenshtein
+from rapidfuzz.distance import Levenshtein as rapid_lev
 
 
-lev1 = levenshtein
-lev2 = Levenshtein().dist_abs
+lev1 = levenshtein              # 200x
+lev2 = rapid_lev.distance       # 1x
+lev3 = Levenshtein().dist_abs   # 300x
 
 class TestLevenshteinFunctions(unittest.TestCase):
     def test_identical_strings(self):
