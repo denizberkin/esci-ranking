@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 import re
+from rapidfuzz.distance import Levenshtein as rapid_levenshtein
 
 from train import train
 from utils.load import load_df
@@ -28,7 +29,7 @@ if __name__ == "__main__":
     print("DF SHAPE: ", df.shape)
     print("DF TEST SHAPE: ", df_test.shape)
 
-    df = df[: 1000]  # for testing purposes
+    # df = df[: 1000]  # for testing purposes
     
     df = process_columns(df)
     df_test = process_columns(df_test)
@@ -47,7 +48,8 @@ if __name__ == "__main__":
     # q - product_brand
     # q - product_color
     # q - combined (gonna be less for sure)
-    # df["levenshtein_title"] = df[["query", "product_title"]].apply(lambda x: levenshtein_norm(x["query"], x["product_title"]), axis=1)
+    df[["query", "product_title"]].apply(lambda x: rapid_levenshtein.normalized_distance(x["query"], x["product_title"]), axis=1)
+    df["levenshtein_title"] = df[["query", "product_title"]].apply(lambda x: rapid_levenshtein.normalized_distance(x["query"], x["product_title"]), axis=1)
     # df["levenshtein_desc"] = df[["query", "product_description"]].apply(lambda x: levenshtein_norm(x["query"], x["product_description"]), axis=1)
     # df["levenshtein_bullet"] = df[["query", "product_bullet_points"]].apply(lambda x: levenshtein_norm(x["query"], x["product_bullet_points"]), axis=1)
     # df["levenshtein_brand"] = df[["query", "product_brand"]].apply(lambda x: levenshtein_norm(x["query"], x["product_brand"]), axis=1)
@@ -58,7 +60,7 @@ if __name__ == "__main__":
     unique_colour_list = df["product_color"].value_counts()
     print("LEN: ", len(unique_colour_list))
     # save 100 colours with highest freq as known colours
-    # save_colours_list(unique_colour_list.keys()[: 100])
+    # corrected_unique_colour_list = save_colours_list(unique_colour_list.keys())
 
     # normalize colours
     df["product_color"] = df["product_color"].apply(lambda x: colour_normalize(x))
@@ -66,7 +68,7 @@ if __name__ == "__main__":
 
     # normalized colours to a certain top-k colour set,
     # can now obtain a feature if a colour matches with query or not
-    df["colour_match"] = df.apply(lambda r: colour_match(r["query"], r["product_color"]), axis=1)
+    df["colour_match"] = df[["query", "product_color"]].apply(lambda r: colour_match(r["query"], r["product_color"]), axis=1)
 
     print(df["colour_match"].value_counts())
 
@@ -82,8 +84,10 @@ if __name__ == "__main__":
     df, names_additional_feature = additional_features(df)
     
     names_tfidf_column, names_st_column = [], []
+    print("starting cos sim calcs!!")
     # df, names_tfidf_column = tfidf_cosine_sim(df)
-    # df, names_st_column = sentence_transformer_cosine_sim(df)
+    df, names_st_column = sentence_transformer_cosine_sim(df)
+
     
     feature_columns = []
     feature_columns.extend(names_combined_column);feature_columns.extend(levenshtein_cols)
@@ -92,4 +96,4 @@ if __name__ == "__main__":
     # extend columns created in main.py by hand!
     
     print(feature_columns)    
-    # train(df, feature_columns)
+    train(df, feature_columns)
