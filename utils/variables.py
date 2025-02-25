@@ -1,6 +1,8 @@
+import os
+
 ROOT_FOLDER = "formatted_esci/"
 
-COLUMNS_TO_PROCESS =  ["query", 
+COLUMNS_TO_PROCESS =  [  # "query",    # data leak? 
                        "product_title", 
                        "product_description",
                        "product_brand",
@@ -29,5 +31,6 @@ MODEL_PARAMS = {
 
 COLOURS_TXT_FN = "unique_colours.txt"
 
-with open(COLOURS_TXT_FN, "r") as f:
-    COLOURS = f.read().splitlines()
+with open(COLOURS_TXT_FN, "r+") as f:
+    COLOURS = list(set(f.read().splitlines()))
+    
