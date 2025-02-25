@@ -1,13 +1,16 @@
+import os
 import re
-import pandas as pd
-import numpy as np
 
-from nltk import word_tokenize
+import numpy as np
+import pandas as pd
+import torch
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 
-from utils.variables import COLUMNS_TO_PROCESS, ST_MODEL_NAME
+from utils.variables import COLUMNS_TO_PROCESS, ST_MODEL_NAME, EMBEDDING_FOLDER
+from utils.save import save_embeddings2npy, load_embeddings
 
 
 def process_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -70,6 +73,19 @@ def qf_overlap_ratio(query: str, feature: str) -> float:
     return len(query_tokens.intersection(feature_tokens)) / (len(query_tokens.union(feature_tokens)) + 1e-5)  # avoid zerodiv again
 
 
+def prefix_match(query: str, feature: str) -> float:
+    # Normalize texts as done in preprocess_text()
+    if feature.startswith(query):
+        return 1.0
+    return 0.0
+
+
+def postfix_match(query: str, feature: str) -> float:
+    if feature.endswith(query):
+        return 1.0
+    return 0.0
+
+
 # re-wrote tfidf to obtain cosine sim matrice - can extract the diagonal to get similarities between query and feature
 def tfidf_cosine_sim(df: pd.DataFrame
                      ) -> tuple[pd.DataFrame, list[str]]:
@@ -80,28 +96,43 @@ def tfidf_cosine_sim(df: pd.DataFrame
     
     query_tfidf = tfidf.transform(df["query"])
     combined_tfidf = tfidf.transform(df["combined"])
+    
+    # does not save embeddings right now!!
 
-    df["tfidf_cosine_sim"] = process_cosine_sim_by_batch(query_tfidf, combined_tfidf)
+    # df["tfidf_cosine_sim"] = cosine_sim_by_batch(query_tfidf, combined_tfidf)
+    df["tfidf_cosine_sim"] = cosine_sim_gpu(query_tfidf, combined_tfidf)
     return df, ["tfidf_cosine_sim"]
 
 
 # default is https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2, 22.7M params, 384 dim
 def sentence_transformer_cosine_sim(df: pd.DataFrame, 
-                                    model_name: str = ST_MODEL_NAME
+                                    model_name: str = ST_MODEL_NAME,
+                                    save_embeddings: bool = False
                                     ) -> tuple[pd.DataFrame, list[str]]:
     """ calculate cosine similarity between query and features using sentence transformer """
-    model = SentenceTransformer(model_name)
-    query_embeddings = model.encode(df["query"].tolist(), show_progress_bar=True)
-    combined_embeddings = model.encode(df["combined"].tolist(), show_progress_bar=True)
+    if os.path.exists(EMBEDDING_FOLDER) and len(os.listdir(EMBEDDING_FOLDER)) > 0:
+        print("LOADING EMBEDDINGS!")
+        query_embeddings, combined_embeddings = load_embeddings()
+        
+    else:  # compute them
+        print("COMPUTING EMBEDDINGS!")
+        model = SentenceTransformer(model_name, device="cuda")
+        query_embeddings = model.encode(df["query"].tolist(), show_progress_bar=True)
+        combined_embeddings = model.encode(df["combined"].tolist(), show_progress_bar=True)
     
-    df["st_cosine_sim"] = process_cosine_sim_by_batch(query_embeddings, combined_embeddings)
+        if save_embeddings:
+            save_embeddings2npy({"query": query_embeddings, 
+                            "feature": combined_embeddings}, 
+                            )
+    
+    # df["st_cosine_sim"] = cosine_sim_by_batch(query_embeddings, combined_embeddings)
+    df["st_cosine_sim"] = cosine_sim_gpu(query_embeddings, combined_embeddings)
     return df, ["st_cosine_sim"]
 
 
-
-def process_cosine_sim_by_batch(q_embeddings, 
+def cosine_sim_by_batch(q_embeddings, 
                             f_embeddings,
-                            batch_size: int=10000) -> np.ndarray:
+                            batch_size: int=20000) -> np.ndarray:
     """ relieved from memory constraints """
     similarities = []
     for i in range(0, len(q_embeddings), batch_size):
@@ -110,3 +141,19 @@ def process_cosine_sim_by_batch(q_embeddings,
         batch_similarities = cosine_similarity(q_batch, f_batch)
         similarities.extend(np.diagonal(batch_similarities))
     return similarities
+
+
+def cosine_sim_gpu(q_embeddings, f_embeddings) -> np.ndarray:
+    """ calculate cosine similarity between query and features """
+    q_tensor = torch.tensor(q_embeddings, device="cuda")
+    f_tensor = torch.tensor(f_embeddings, device="cuda")
+    
+    # Q * F = |Q| * |F| * cos(theta)  [consider theta=0 after normalization]
+    q_tensor = torch.nn.functional.normalize(q_tensor, dim=1)
+    f_tensor = torch.nn.functional.normalize(f_tensor, dim=1)
+    
+    # i noticed this after implementing
+    # similarities = torch.nn.functional.cosine_similarity(q_tensor, f_tensor, dim=1)
+    
+    similarities = torch.sum(q_tensor * f_tensor, dim=1)
+    return similarities.cpu().numpy()
