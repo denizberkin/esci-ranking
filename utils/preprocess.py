@@ -80,9 +80,9 @@ def tfidf_cosine_sim(df: pd.DataFrame
     
     query_tfidf = tfidf.transform(df["query"])
     combined_tfidf = tfidf.transform(df["combined"])
-    sim_matrice = cosine_similarity(query_tfidf, combined_tfidf)
-    df["tfidf_cosine_sim"] = np.diag(sim_matrice)
-    return df, [tfidf_cosine_sim]
+
+    df["tfidf_cosine_sim"] = process_cosine_sim_by_batch(query_tfidf, combined_tfidf)
+    return df, ["tfidf_cosine_sim"]
 
 
 # default is https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2, 22.7M params, 384 dim
@@ -93,7 +93,20 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
     model = SentenceTransformer(model_name)
     query_embeddings = model.encode(df["query"].tolist(), show_progress_bar=True)
     combined_embeddings = model.encode(df["combined"].tolist(), show_progress_bar=True)
-    sim_matrice = cosine_similarity(query_embeddings, combined_embeddings)
     
-    df["st_cosine_sim"] = np.diag(sim_matrice)
+    df["st_cosine_sim"] = process_cosine_sim_by_batch(query_embeddings, combined_embeddings)
     return df, ["st_cosine_sim"]
+
+
+
+def process_cosine_sim_by_batch(q_embeddings, 
+                            f_embeddings,
+                            batch_size: int=10000) -> np.ndarray:
+    """ relieved from memory constraints """
+    similarities = []
+    for i in range(0, len(q_embeddings), batch_size):
+        q_batch = q_embeddings[i:i+batch_size]
+        f_batch = f_embeddings[i:i+batch_size]
+        batch_similarities = cosine_similarity(q_batch, f_batch)
+        similarities.extend(np.diagonal(batch_similarities))
+    return similarities
