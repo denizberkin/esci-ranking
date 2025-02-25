@@ -7,7 +7,7 @@ from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import GroupShuffleSplit, GroupKFold
-from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score, ndcg_score
+from sklearn.metrics import ndcg_score
 import lightgbm as lgbm
 
 from utils.variables import MODEL_PARAMS
@@ -16,7 +16,6 @@ def train(df: pd.DataFrame, feature_columns: list):
     x = df[feature_columns]
     y = df["labels"]
     
-    groups = df.groupby("query_id").size().tolist()
     gkf = GroupKFold(n_splits=5)
     
     for fold, (train_id, valid_id) in enumerate(tqdm(gkf.split(x, y, groups=df["query_id"]), total=5, desc="Folds")):
