@@ -1,8 +1,8 @@
+import os
+
 import numpy as np
 import pandas as pd
-
 from tqdm import tqdm
-
 
 from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -10,11 +10,17 @@ from sklearn.model_selection import GroupShuffleSplit, GroupKFold
 from sklearn.metrics import ndcg_score
 import lightgbm as lgbm
 
-from utils.variables import MODEL_PARAMS
+from utils.save import save_model
+from utils.variables import MODEL_PARAMS, MODEL_SAVE_FOLDER
 
 def train(df: pd.DataFrame, feature_columns: list):
     x = df[feature_columns]
     y = df["labels"]
+    
+    # track best model
+    best_ndcg = -np.inf
+    best_model = None
+    best_fold = None
     
     gkf = GroupKFold(n_splits=5)
     
@@ -44,4 +50,21 @@ def train(df: pd.DataFrame, feature_columns: list):
             ndcg = ndcg_score(y_true, y_pred, k=3)
             ndcg_scores.append(ndcg)
         
+        avg_ndcg = np.mean(ndcg_scores)
         tqdm.write("Validation NDCG Score for Fold {}: {:.4f}".format(fold + 1, np.mean(ndcg_scores)))
+        
+        if avg_ndcg > best_ndcg:
+            best_ndcg = avg_ndcg
+            best_model = model
+            best_fold = fold + 1
+            
+    if best_model is not None:
+        if not os.path.exists(MODEL_SAVE_FOLDER):
+            os.makedirs(MODEL_SAVE_FOLDER)
+        best_model_fn = os.path.join(MODEL_SAVE_FOLDER, f"model_fold_{best_fold}.pkl")
+        save_model(model, best_model_fn, as_txt=False)
+        tqdm.write(f"Best Model saved at {best_model_fn}")
+    else:
+        tqdm.write("??? No best model found ???")
+        
+    return best_model
