@@ -1,6 +1,8 @@
 import os
 
+MODEL_SAVE_FOLDER = "models/"
 ROOT_FOLDER = "formatted_esci/"
+EMBEDDING_FOLDER = "embeddings/"
 
 COLUMNS_TO_PROCESS =  [  # "query",    # data leak? 
                        "product_title", 
