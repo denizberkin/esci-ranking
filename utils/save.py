@@ -26,9 +26,14 @@ def load_embeddings() -> tuple[np.ndarray, np.ndarray]:
 
     
 def save_model(model, fn: str, as_txt: bool = False):
-    """ fn: .pkl extension """
+    """ only .pkl for now """
     if as_txt:
         with open(fn, "w") as f:
             f.write(str(model))
     else:
         joblib.dump(model, fn)
+
+
+def load_model(fn: str):
+    """ only .pkl for now"""
+    return joblib.load(fn)
