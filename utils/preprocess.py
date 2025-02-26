@@ -3,7 +3,9 @@ import re
 
 import numpy as np
 import pandas as pd
+import scipy.sparse
 import torch
+import scipy
 from tqdm import tqdm
 
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -127,6 +129,10 @@ def tfidf_cosine_sim(df: pd.DataFrame,
     query_tfidf = tfidf.fit_transform(df["query"])
     combined_tfidf = tfidf.transform(df["combined"])
     
+    # tfidf outputs these as sparse matrices so we need to convert them to numpy arrays
+    query_tfidf = query_tfidf.toarray()
+    combined_tfidf = combined_tfidf.toarray()
+    
     # save embeddings to npy file
     if save_embeddings:
         save_embeddings2npy({"query": query_tfidf,
@@ -137,6 +143,7 @@ def tfidf_cosine_sim(df: pd.DataFrame,
     print("STARTING COSSIM!!")
     cos_sim_func = cosine_sim_gpu if device == "cuda" else cosine_sim_by_batch
     df["tfidf_cosine_sim"] = cos_sim_func(query_tfidf, combined_tfidf)[: len(df[df.columns[0]])]  # match and only take the loaded sims
+    del query_tfidf, combined_tfidf
     print("COSSIM FINISHED!!")
     return df, ["tfidf_cosine_sim"]
 
@@ -173,12 +180,13 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
     print("STARTING COSSIM!!")
     cos_sim_func = cosine_sim_gpu if device == "cuda" else cosine_sim_by_batch
     df["st_cosine_sim"] = cos_sim_func(query_embeddings, combined_embeddings)[: len(df[df.columns[0]])]  # match and only take the loaded sims
+    del query_embeddings, combined_embeddings
     print("COSSIM FINISHED!!")
     return df, ["st_cosine_sim"]
 
 
-def cosine_sim_by_batch(q_embeddings, 
-                            f_embeddings,
+def cosine_sim_by_batch(q_embeddings: np.ndarray, 
+                            f_embeddings: np.ndarray,
                             batch_size: int=20000) -> np.ndarray:
     """ relieved from memory constraints """
     similarities = []
