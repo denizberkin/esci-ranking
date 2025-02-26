@@ -63,8 +63,8 @@ def additional_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     """ calculate additional features """
     df["longest_common_substring_ratio"] = df.apply(lambda r: longest_common_substring(r["query"], r["combined"]), axis=1)
     df["longest_common_subsequence_ratio"] = df.apply(lambda r: longest_common_subsequence(r["query"], r["combined"]), axis=1)
-    df["token_overlap"] = df.apply(lambda r: qf_overlap_ratio(r["query"], r["combined"]), axis=1)
-    df["query_length"] = df["query"].apply(lambda r: len(r.split()))
+    df["token_overlap"] = df.apply(lambda r: qf_IOU(r["query"], r["combined"]), axis=1)
+    df["query_length"] = df["query"].apply(lambda r: len(r.split()))  # ????????????????????
     df["combined_length"] = df["combined"].apply(lambda r: len(r.split()))  # may be unnecessary, more so if combined is not used
     df["length_ratio"] = df["query_length"] / (df["combined_length"] + 1e-5)  # avoid zerodiv
     return df, ["longest_common_substring_ratio", "longest_common_subsequence_ratio",
@@ -97,7 +97,7 @@ def longest_common_subsequence(query: str, feature: str) -> float:
     return dp[m][n] / max(m, n, 1)  # avoid zerodiv
 
 
-def qf_overlap_ratio(query: str, feature: str) -> float:
+def qf_IOU(query: str, feature: str) -> float:
     """ calculating overlap ratio -IOU- between query and given feature """
     query_tokens = set(query.split())  # split so each token is a word
     feature_tokens = set(feature.split())
@@ -118,20 +118,26 @@ def postfix_match(query: str, feature: str) -> float:
 
 
 # re-wrote tfidf to obtain cosine sim matrice - can extract the diagonal to get similarities between query and feature
-def tfidf_cosine_sim(df: pd.DataFrame
+def tfidf_cosine_sim(df: pd.DataFrame,
+                     save_embeddings: bool = False
                      ) -> tuple[pd.DataFrame, list[str]]:
     """ calculate cosine similarity between query and features """
-    tfidf = TfidfVectorizer(ngram_range=(1, 3), stop_words="english", min_df=2)
-    qf_df = pd.concat([df["query"], df["combined"]], axis=1)
-    tfidf.fit(qf_df)
-    
-    query_tfidf = tfidf.transform(df["query"])
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    tfidf = TfidfVectorizer(ngram_range=(2, 2), stop_words="english")
+    query_tfidf = tfidf.fit_transform(df["query"])
     combined_tfidf = tfidf.transform(df["combined"])
     
-    # does not save embeddings right now!!
-
-    # df["tfidf_cosine_sim"] = cosine_sim_by_batch(query_tfidf, combined_tfidf)
-    df["tfidf_cosine_sim"] = cosine_sim_gpu(query_tfidf, combined_tfidf)
+    # save embeddings to npy file
+    if save_embeddings:
+        save_embeddings2npy({"query": query_tfidf,
+                             "feature": combined_tfidf},
+                             fn="tfidf_firstsample"
+                             )
+    
+    print("STARTING COSSIM!!")
+    cos_sim_func = cosine_sim_gpu if device == "cuda" else cosine_sim_by_batch
+    df["tfidf_cosine_sim"] = cos_sim_func(query_tfidf, combined_tfidf)[: len(df[df.columns[0]])]  # match and only take the loaded sims
+    print("COSSIM FINISHED!!")
     return df, ["tfidf_cosine_sim"]
 
 
@@ -142,7 +148,7 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
                                     ) -> tuple[pd.DataFrame, list[str]]:
     """ calculate cosine similarity between query and features using sentence transformer """
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    if os.path.exists(EMBEDDING_FOLDER) and len(os.listdir(EMBEDDING_FOLDER)) > 0:
+    if os.path.exists(EMBEDDING_FOLDER) and len(os.listdir(EMBEDDING_FOLDER)) > 0:  # bad check
         print("LOADING EMBEDDINGS!")  # TODO: timeit
         query_embeddings, combined_embeddings = load_embeddings()
         
@@ -161,7 +167,7 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
     
         if save_embeddings:
             save_embeddings2npy({"query": query_embeddings, 
-                            "feature": combined_embeddings}, 
+                            "feature": combined_embeddings}
                             )
 
     print("STARTING COSSIM!!")
