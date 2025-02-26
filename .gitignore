@@ -5,6 +5,11 @@ formatted_esci/
 formatted_csv/
 embeddings/
 
+# other ide files
+.vscode/
+.idea/
+
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
