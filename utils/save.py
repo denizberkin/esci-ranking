@@ -16,10 +16,10 @@ def save_embeddings2npy(embeddings: dict, fn: str = ""):
 
 def load_embeddings(fn: str = "") -> tuple[np.ndarray, np.ndarray]:
     """ load embeddings from EMBEDDING_FOLDER """
-    query_embeddings = np.load(os.path.join(EMBEDDING_FOLDER, f"{fn}_query_embeddings.npy"), 
+    query_embeddings = np.load(os.path.join(EMBEDDING_FOLDER, f"{fn}query_embeddings.npy"), 
                                allow_pickle=True
                                )
-    feature_embeddings = np.load(os.path.join(EMBEDDING_FOLDER, f"{fn}_feature_embeddings.npy"), 
+    feature_embeddings = np.load(os.path.join(EMBEDDING_FOLDER, f"{fn}feature_embeddings.npy"), 
                                  allow_pickle=True
                                  )
     return (query_embeddings, feature_embeddings)
