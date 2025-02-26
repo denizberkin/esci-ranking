@@ -9,7 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 
-from utils.variables import COLUMNS_TO_PROCESS, ST_MODEL_NAME, EMBEDDING_FOLDER
+from utils.variables import COLUMNS_TO_PROCESS, ST_MODEL_NAME, EMBEDDING_FOLDER, NUM_THREADS
 from utils.save import save_embeddings2npy, load_embeddings
 
 
@@ -116,9 +116,17 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
         
     else:  # compute them
         print("COMPUTING EMBEDDINGS!")
-        model = SentenceTransformer(model_name, device="cuda")
-        query_embeddings = model.encode(df["query"].tolist(), show_progress_bar=True)
-        combined_embeddings = model.encode(df["combined"].tolist(), show_progress_bar=True)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = SentenceTransformer(model_name, device=device)
+        if device == "cpu":  # mp
+            print("Embedding with multiprocessing!")
+            pool = model.start_multi_process_pool(["cpu"] * NUM_THREADS)
+            query_embeddings = model.encode_multi_process(df["query"].tolist(), pool, chunk_size=100, show_progress_bar=True)
+            combined_embeddings = model.encode_multi_process(df["combined"].tolist(), pool, chunk_size=100, show_progress_bar=True)
+            model.stop_multi_process_pool(pool)
+        else:
+            query_embeddings = model.encode(df["query"].tolist(), show_progress_bar=True)
+            combined_embeddings = model.encode(df["combined"].tolist(), show_progress_bar=True)
     
         if save_embeddings:
             save_embeddings2npy({"query": query_embeddings, 
