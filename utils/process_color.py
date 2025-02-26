@@ -4,6 +4,7 @@ import pandas as pd
 from rapidfuzz import process, fuzz
 
 from utils.variables import COLOURS
+from utils.preprocess import longest_common_subsequence
 
 
 def save_colours_list(colours_list: list, 
@@ -31,14 +32,21 @@ def colour_normalize(colour: str,
                                            scorer=fuzz.token_sort_ratio)
     if score >= threshold:
         return matched
-    else: return "unknown"
+    else:
+        for colour in colours_list:
+            lcs_length = longest_common_subsequence(processed_colour, colour)
+            # a ratio to check if its matched is good but with 3-4 char colours, it should be exact or one off. e.g. "red" "ref", "blue" "blur"
+            if (len(colour) > 4 and lcs_length / len(colour) >= threshold and lcs_length > 1) or \
+               (len(colour) <= 4 and lcs_length + 1 >= len(colour) and lcs_length > 1):
+                return colour
+    return "unknown"
 
 
 
 def colour_match(query: str,  # min 3 chr, txt
                  prod_colour: str, 
-                 colour_list: list = COLOURS):
-    for colour in colour_list:
+                 colours_list: list = COLOURS):
+    for colour in colours_list:
         if colour in query:
             return 1.0 if colour in prod_colour else 0.0
     return 0.0
