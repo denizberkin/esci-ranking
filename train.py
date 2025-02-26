@@ -8,6 +8,7 @@ from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import GroupShuffleSplit, GroupKFold
 from sklearn.metrics import ndcg_score
+from scipy.stats import kendalltau, weightedtau
 import lightgbm as lgbm
 
 from utils.save import save_model
