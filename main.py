@@ -26,15 +26,15 @@ if __name__ == "__main__":
     train_filenames = [f for f in os.listdir(ROOT_FOLDER) if f.startswith("train")]
     test_filenames = [f for f in os.listdir(ROOT_FOLDER) if f.startswith("test")]
 
-    df = load_df(train_filenames[: 1])
-    df_test = load_df(test_filenames[: 1])
+    df = load_df(train_filenames[: 2])
+    df_test = load_df(test_filenames[:])
 
     print("DF COLUMNS: ", df.columns)
     print("DF TEST COLUMNS: ", df_test.columns)
     print("DF SHAPE: ", df.shape)
     print("DF TEST SHAPE: ", df_test.shape)
 
-    df = df[: 1000]  # for testing purposes
+    # df = df[: 1000]  # for testing purposes
 
     df, feature_columns = preprocess_pipeline(df)
     # df_test = preprocess_pipeline(df_test)

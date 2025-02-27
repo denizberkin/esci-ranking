@@ -35,7 +35,6 @@ def normalize_colors(df) -> tuple[pd.DataFrame, list[str]]:
 def time_colour_match(df) -> tuple[pd.DataFrame, list[str]]:
     df["colour_match"] = df[["query", "product_color"]].apply(lambda r: colour_match(r["query"], r["product_color"]), axis=1)
     print(df["colour_match"].value_counts(), "\n")
-    print(df["colour_match"].describe())
     return df, ["colour_match"]
 
 
@@ -95,7 +94,7 @@ def preprocess_pipeline(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
 
     # prefix, postfix match
     df, prefix_match_column = time_prefix_match(df)
-    df, postfix_match_column = time_postfix_match(df)
+    # df, postfix_match_column = time_postfix_match(df)
 
     # additional length-related features
     df, names_additional_feature = time_additional_features(df)
@@ -107,7 +106,7 @@ def preprocess_pipeline(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     feature_columns.extend(levenshtein_title_column)
     feature_columns.extend(colour_match_column)
     feature_columns.extend(prefix_match_column)
-    feature_columns.extend(postfix_match_column)
+    # feature_columns.extend(postfix_match_column)
     feature_columns.extend(names_additional_feature)
     feature_columns.extend(names_tfidf_column)
     feature_columns.extend(names_st_column)

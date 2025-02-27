@@ -32,13 +32,13 @@ def colour_normalize(colour: str,
                                            scorer=fuzz.token_sort_ratio)
     if score >= threshold:
         return matched
-    else:
-        for colour in colours_list:
-            lcs_length = longest_common_subsequence(processed_colour, colour)
-            # a ratio to check if its matched is good but with 3-4 char colours, it should be exact or one off. e.g. "red" "ref", "blue" "blur"
-            if (len(colour) > 4 and lcs_length / len(colour) >= threshold and lcs_length > 1) or \
-               (len(colour) <= 4 and lcs_length + 1 >= len(colour) and lcs_length > 1):
-                return colour
+    # else:  # too long for diminishing returns
+    #     for colour in colours_list:
+    #         lcs_length = longest_common_subsequence(processed_colour, colour)
+    #         # a ratio to check if its matched is good but with 3-4 char colours, it should be exact or one off. e.g. "red" "ref", "blue" "blur"
+    #         if (len(colour) > 4 and lcs_length / len(colour) >= threshold and lcs_length > 1) or \
+    #            (len(colour) <= 4 and lcs_length + 1 >= len(colour) and lcs_length > 1):
+    #             return colour
     return "unknown"
 
 

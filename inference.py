@@ -15,7 +15,7 @@ def test(model: lgbm.Booster = None,
           test_df: pd.DataFrame = None,
           feature_columns: list[str] = None):
     if model is None:
-        model: lgbm.Booster = load_model(os.path.join(MODEL_SAVE_FOLDER, "model_fold_2.pkl"))
+        model: lgbm.Booster = load_model(os.path.join(MODEL_SAVE_FOLDER, "model_best.pkl"))
     
     plot_importances(model)
 
