@@ -34,7 +34,7 @@ if __name__ == "__main__":
     print("DF SHAPE: ", df.shape)
     print("DF TEST SHAPE: ", df_test.shape)
 
-    # df = df[: 1000]  # for testing purposes
+    df = df[: 1000]  # for testing purposes
 
     df, feature_columns = preprocess_pipeline(df)
     # df_test = preprocess_pipeline(df_test)
