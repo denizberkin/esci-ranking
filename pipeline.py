@@ -71,9 +71,10 @@ def preprocess_pipeline(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     print("Start preprocessing pipeline")
     save_current_features_to = os.path.join(ROOT_FOLDER, "df_without_cosinesims.csv")
     if os.path.exists(save_current_features_to):
-        # only load the 
+        # only load the calculated features
         df = pd.read_csv(save_current_features_to)
-        print("Loaded df without cosine sims, passing through to next steps")
+        # preprocess, remove punc, lower case etc.
+        df = time_process_columns(df)
 
     else:
         # preprocess, remove punc, lower case etc.
