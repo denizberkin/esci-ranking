@@ -45,6 +45,6 @@ if __name__ == "__main__":
     print("NUM FEATURES: ", len(feature_columns))
     best_model = train(df, feature_columns)
     
-    test(best_model
+    test(best_model,
         test_df=df_test, 
         feature_columns=feature_columns)
