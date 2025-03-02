@@ -26,7 +26,7 @@ if __name__ == "__main__":
     train_filenames = [f for f in os.listdir(ROOT_FOLDER) if f.startswith("train")]
     test_filenames = [f for f in os.listdir(ROOT_FOLDER) if f.startswith("test")]
 
-    df = load_df(train_filenames[:1])  # no effect, saved the processed df and loading in "pipeline"
+    df = load_df(train_filenames[:])  # no effect, saved the processed df and loading in "pipeline"
     df_test = load_df(test_filenames[:1])
 
     print("DF COLUMNS: ", df.columns)
@@ -39,12 +39,12 @@ if __name__ == "__main__":
     df, feature_columns = preprocess_pipeline(df)
     # df_test = preprocess_pipeline(df_test)
 
-    plot_df_corr(df[feature_columns])
-    plot_column_skewness(df[feature_columns])
+    # plot_df_corr(df[feature_columns])
+    # plot_column_skewness(df[feature_columns])
 
     print("NUM FEATURES: ", len(feature_columns))
     best_model = train(df, feature_columns)
     
-    test(best_model,
-        test_df=df_test, 
-        feature_columns=feature_columns)
+    # test(best_model,
+    #     test_df=df_test, 
+    #     feature_columns=feature_columns)
