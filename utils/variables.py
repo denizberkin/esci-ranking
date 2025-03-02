@@ -2,11 +2,16 @@ import os
 
 
 PLOT_FOLDER = "plots/"
-
-ST_MODEL_NAME = "all-MiniLM-L6-v2"
 MODEL_SAVE_FOLDER = "models/"
 ROOT_FOLDER = "formatted_esci/"
 EMBEDDING_FOLDER = "embeddings/"
+
+ST_MODEL_NAME = "all-MiniLM-L6-v2"
+ST_COS_SIM_FN = "st_cosine_sim.parquet"
+TFIDF_COS_SIM_FN = "tfidf_cosine_sim.parquet"
+
+NDCG_AT_K = 5
+
 NUM_THREADS = 6  # if no saved embeddings and cuda not available
 
 
