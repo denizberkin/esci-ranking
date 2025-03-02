@@ -1,8 +1,17 @@
 import os
-import numpy as np
 import joblib
 
-from utils.variables import EMBEDDING_FOLDER
+import numpy as np
+import pandas as pd
+
+from utils.variables import EMBEDDING_FOLDER, ROOT_FOLDER
+
+
+def load_df(filenames: list, root_folder: str = ROOT_FOLDER) -> pd.DataFrame:
+    df = pd.concat([
+        pd.read_parquet(os.path.join(root_folder, fn)) 
+        for fn in filenames])
+    return df
 
 
 def save_embeddings2npy(embeddings: dict, fn: str = ""):
@@ -37,3 +46,10 @@ def save_model(model, fn: str, as_txt: bool = False):
 def load_model(fn: str):
     """ only .pkl for now"""
     return joblib.load(fn)
+
+
+# save and overwrite the file given df columns
+def save_df_columns(df: pd.DataFrame, 
+            columns: list[str],
+            fn: str):
+    df[columns].to_parquet(os.path.join(EMBEDDING_FOLDER, fn), index=False)
