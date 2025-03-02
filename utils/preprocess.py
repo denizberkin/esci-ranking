@@ -12,8 +12,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 
-from utils.variables import COLUMNS_TO_PROCESS, ST_MODEL_NAME, EMBEDDING_FOLDER, NUM_THREADS
-from utils.save import save_embeddings2npy, load_embeddings
+from utils.variables import COLUMNS_TO_PROCESS, ST_MODEL_NAME, EMBEDDING_FOLDER, \
+      ST_COS_SIM_FN, TFIDF_COS_SIM_FN, NUM_THREADS
+from utils.save import save_embeddings2npy, load_embeddings, save_df_columns
+from utils.logger import log_time
+
 
 
 def process_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -61,16 +64,29 @@ def levenshtein_norm(a: str, b: str) -> np.float64:
     return levenshtein(a, b) / max(max(len(a), len(b)), 1)  # second max in the case of both strings being empty
 
 
+@log_time
+def time_longest_common_substring(df: pd.DataFrame) -> pd.Series:
+    return df.apply(lambda r: longest_common_substring(r["query"], r["product_title"]), axis=1)
+
+@log_time
+def time_longest_common_subsequence(df: pd.DataFrame) -> pd.Series:
+    return df.apply(lambda r: longest_common_subsequence(r["query"], r["product_title"]), axis=1)
+
+@log_time
+def time_qf_IOU(df: pd.DataFrame) -> pd.Series:
+    return df.apply(lambda r: qf_IOU(r["query"], r["product_title"]), axis=1)
+
+
 def additional_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     """ calculate additional features """
-    df["longest_common_substring_ratio"] = df.apply(lambda r: longest_common_substring(r["query"], r["combined"]), axis=1)
-    df["longest_common_subsequence_ratio"] = df.apply(lambda r: longest_common_subsequence(r["query"], r["combined"]), axis=1)
-    df["token_overlap"] = df.apply(lambda r: qf_IOU(r["query"], r["combined"]), axis=1)
+    df["longest_common_substring_ratio"] = time_longest_common_substring(df)
+    df["longest_common_subsequence_ratio"] = time_longest_common_subsequence(df)
+    df["token_overlap"] = time_qf_IOU(df)
     df["query_length"] = df["query"].apply(lambda r: len(r.split()))  # ????????????????????
-    df["combined_length"] = df["combined"].apply(lambda r: len(r.split()))  # may be unnecessary, more so if combined is not used
-    df["length_ratio"] = df["query_length"] / (df["combined_length"] + 1e-5)  # avoid zerodiv
+    df["product_title_length"] = df["product_title"].apply(lambda r: len(r.split()))  # may be unnecessary, more so if product_title is not used
+    df["length_ratio"] = df["query_length"] / (df["product_title_length"] + 1e-5)  # avoid zerodiv
     return df, ["longest_common_substring_ratio", "longest_common_subsequence_ratio",
-                "token_overlap", "query_length", "combined_length", "length_ratio"]
+                "token_overlap", "query_length", "product_title_length", "length_ratio"]
 
 
 def longest_common_substring(query: str, feature: str) -> float:
@@ -121,29 +137,77 @@ def postfix_match(query: str, feature: str) -> float:
 
 # re-wrote tfidf to obtain cosine sim matrice - can extract the diagonal to get similarities between query and feature
 def tfidf_cosine_sim(df: pd.DataFrame,
-                     save_embeddings: bool = False
+                     save_embeddings: bool = False,
+                     batch_size: int = 1000
                      ) -> tuple[pd.DataFrame, list[str]]:
     """ calculate cosine similarity between query and features """
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    tfidf = TfidfVectorizer(ngram_range=(2, 2), stop_words="english")
-    query_tfidf = tfidf.fit_transform(df["query"])
-    combined_tfidf = tfidf.transform(df["combined"])
-    
-    # tfidf outputs these as sparse matrices so we need to convert them to numpy arrays
-    query_tfidf = query_tfidf.toarray()
-    combined_tfidf = combined_tfidf.toarray()
-    
-    # save embeddings to npy file
-    if save_embeddings:
-        save_embeddings2npy({"query": query_tfidf,
-                             "feature": combined_tfidf},
-                             fn="tfidf_firstsample"
-                             )
-    
-    print("STARTING COSSIM!!")
     cos_sim_func = cosine_sim_gpu if device == "cuda" else cosine_sim_by_batch
-    df["tfidf_cosine_sim"] = cos_sim_func(query_tfidf, combined_tfidf)[: len(df[df.columns[0]])]  # match and only take the loaded sims
-    del query_tfidf, combined_tfidf
+    
+    # Check if we already have pre-calculated cosine similarities
+    if TFIDF_COS_SIM_FN in os.listdir(EMBEDDING_FOLDER):
+        print(f"FOUND CALCULATED {TFIDF_COS_SIM_FN}, loading...")
+        cosine_sims = pd.read_parquet(os.path.join(EMBEDDING_FOLDER, TFIDF_COS_SIM_FN))["tfidf_cosine_sim"].tolist()
+        len_cosine_sims = len(cosine_sims)
+        len_df = len(df[df.columns[0]])
+        
+        # Only calculate additional similarities if needed
+        if len_df > len_cosine_sims:
+            print(f"Computing additional similarities for {len_df - len_cosine_sims} records...")
+            # Create TF-IDF vectorizer just for new data
+            tfidf = TfidfVectorizer(max_features=1000, ngram_range=(2, 2), stop_words="english")
+            
+            # Process new data in batches to save memory
+            new_sims = []
+            for i in range(len_cosine_sims, len_df, batch_size):
+                end_idx = min(i + batch_size, len_df)
+                batch_df = df.iloc[i:end_idx]
+                
+                # Calculate TF-IDF for just this batch
+                q_tfidf = tfidf.fit_transform(batch_df["query"]).toarray()
+                f_tfidf = tfidf.transform(batch_df["product_title"]).toarray()
+                
+                # Calculate similarities for this batch
+                batch_sims = cos_sim_func(q_tfidf, f_tfidf)
+                new_sims.extend(batch_sims)
+                
+                # Clean up to free memory
+                del q_tfidf, f_tfidf
+                
+            cosine_sims.extend(new_sims)
+            
+            # Save the updated similarities
+            if save_embeddings:
+                save_df = pd.DataFrame({"tfidf_cosine_sim": cosine_sims, "example_id": df["example_id"][:len(cosine_sims)]})
+                save_df.to_parquet(os.path.join(EMBEDDING_FOLDER, TFIDF_COS_SIM_FN))
+        
+        df["tfidf_cosine_sim"] = cosine_sims[:len_df]
+    
+    else:
+        print("Calculating all similarities from scratch...")
+        # Process in batches to avoid memory issues
+        all_sims = []
+        tfidf = TfidfVectorizer(max_features=1000, ngram_range=(2, 2), stop_words="english")
+        
+        for i in tqdm(range(0, len(df), batch_size), desc="Computing TF-IDF similarities"):
+            end_idx = min(i + batch_size, len(df))
+            batch_df = df.iloc[i:end_idx]
+            
+            q_tfidf = tfidf.fit_transform(batch_df["query"]).toarray()
+            f_tfidf = tfidf.transform(batch_df["product_title"]).toarray()
+            
+            batch_sims = cos_sim_func(q_tfidf, f_tfidf)
+            all_sims.extend(batch_sims)
+            
+            del q_tfidf, f_tfidf
+        
+        df["tfidf_cosine_sim"] = all_sims
+        
+        # Save the results
+        if save_embeddings:
+            save_df = pd.DataFrame({"tfidf_cosine_sim": all_sims, "example_id": df["example_id"][:len(all_sims)]})
+            save_df.to_parquet(os.path.join(EMBEDDING_FOLDER, TFIDF_COS_SIM_FN))
+    
     print("COSSIM FINISHED!!")
     return df, ["tfidf_cosine_sim"]
 
@@ -155,11 +219,11 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
                                     ) -> tuple[pd.DataFrame, list[str]]:
     """ calculate cosine similarity between query and features using sentence transformer """
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    if os.path.exists(EMBEDDING_FOLDER) and len(os.listdir(EMBEDDING_FOLDER)) > 0:  # bad check
+    if os.path.exists(EMBEDDING_FOLDER) and len(os.listdir(EMBEDDING_FOLDER)):  # bad check
         print("LOADING EMBEDDINGS!")  # TODO: timeit
         query_embeddings, combined_embeddings = load_embeddings()
         
-    else:  # compute them
+    elif ST_COS_SIM_FN not in os.listdir(EMBEDDING_FOLDER):  # compute them
         print("COMPUTING EMBEDDINGS!")
         model = SentenceTransformer(model_name, device=device)
         if device == "cpu":  # mp
@@ -176,10 +240,23 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
             save_embeddings2npy({"query": query_embeddings, 
                             "feature": combined_embeddings}
                             )
+    else: print(f"FOUND CALCULATED {ST_COS_SIM_FN}, passing the load of embeddings!")
 
     print("STARTING COSSIM!!")
     cos_sim_func = cosine_sim_gpu if device == "cuda" else cosine_sim_by_batch
-    df["st_cosine_sim"] = cos_sim_func(query_embeddings, combined_embeddings)[: len(df[df.columns[0]])]  # match and only take the loaded sims
+
+    if ST_COS_SIM_FN in os.listdir(EMBEDDING_FOLDER):  # if embeddings were saved
+        cosine_sims = pd.read_parquet(os.path.join(EMBEDDING_FOLDER, ST_COS_SIM_FN))["st_cosine_sim"].tolist()
+        len_cosine_sims = len(cosine_sims)
+        len_df = len(df[df.columns[0]])
+        if len_df > len_cosine_sims:  # if lens not match, compute the rest and combine with loaded
+            cosine_sims.extend(cos_sim_func(query_embeddings[len_cosine_sims: len_df], combined_embeddings[len_cosine_sims: len_df]))
+        df["st_cosine_sim"] = cosine_sims[: len_df]  # covers else: where len_df < len_cosine_sims
+    else:  # compute from scratch if nothing is loaded
+        df["st_cosine_sim"] = cos_sim_func(query_embeddings, combined_embeddings)[: len(df[df.columns[0]])]  # match and only take the loaded sims
+    # save st_cosine_sim column, with example_id to be able to re-track
+    save_df_columns(df, ["st_cosine_sim", "example_id"], ST_COS_SIM_FN)  # save upto len_df again
+
     del query_embeddings, combined_embeddings
     print("COSSIM FINISHED!!")
     return df, ["st_cosine_sim"]
