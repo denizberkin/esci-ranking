@@ -20,31 +20,61 @@ from utils.variables import SCORE_MAP, ROOT_FOLDER, COLUMNS_TO_PROCESS
 pd.options.mode.chained_assignment = None
 
 
-
 if __name__ == "__main__":
+    # Parse command line arguments if needed
+    import argparse
+    parser = argparse.ArgumentParser(description='train and/or test the model')
+    parser.add_argument('--train', action='store_true', help='Train the model')
+    parser.add_argument('--test', action='store_true', help='Test the model')
+    parser.add_argument('--train_limit', type=int, default=None, help='Limit training data for testing')
+    args = parser.parse_args()
 
-    train_filenames = [f for f in os.listdir(ROOT_FOLDER) if f.startswith("train")]
-    test_filenames = [f for f in os.listdir(ROOT_FOLDER) if f.startswith("test")]
+    if not args.train and not args.test:
+        args.train = True
+        args.test = True
 
-    df = load_df(train_filenames[:])  # no effect, saved the processed df and loading in "pipeline"
-    df_test = load_df(test_filenames[:1])
+    if args.train:
+        train_filenames = [f for f in os.listdir(ROOT_FOLDER) if f.startswith("train")]
+        df = load_df(train_filenames[:])  # no effect, saved the processed df and loading in "pipeline"
+        
+        print("DF COLUMNS: ", df.columns)
+        print("DF SHAPE: ", df.shape)
 
-    print("DF COLUMNS: ", df.columns)
-    print("DF TEST COLUMNS: ", df_test.columns)
-    print("DF SHAPE: ", df.shape)
-    print("DF TEST SHAPE: ", df_test.shape)
+        # df = df[: 1000]
+        # print(f"Limited training data to {args.train_limit} samples")
 
-    # df = df[: 1000]  # for testing purposes
+        # Preprocess training data
+        df, feature_columns = preprocess_pipeline(df)
 
-    df, feature_columns = preprocess_pipeline(df)
-    # df_test = preprocess_pipeline(df_test)
+        # Plot data characteristics if needed
+        plot_df_corr(df[feature_columns + ["labels"]])
+        # plot_column_skewness(df[feature_columns])
 
-    # plot_df_corr(df[feature_columns])
-    # plot_column_skewness(df[feature_columns])
+        print("NUM FEATURES: ", len(feature_columns))
+        best_model = train(df, feature_columns)
+    else:
+        best_model = None
+        feature_columns = None
 
-    print("NUM FEATURES: ", len(feature_columns))
-    best_model = train(df, feature_columns)
-    
-    # test(best_model,
-    #     test_df=df_test, 
-    #     feature_columns=feature_columns)
+    # Test model if testing
+    if args.test:
+        test_filenames = [f for f in os.listdir(ROOT_FOLDER) if f.startswith("test")]
+        df_test = load_df(test_filenames[:1])
+        
+        print("DF TEST COLUMNS: ", df_test.columns)
+        print("DF TEST SHAPE: ", df_test.shape)
+        
+        # Process test data through the same pipeline
+        df_test, test_feature_columns = preprocess_pipeline(df_test, is_test=True)
+        
+        # Make sure we use the same feature columns as training if available
+        if feature_columns is None:
+            print("Using feature columns from test preprocessing")
+            feature_columns = test_feature_columns
+        
+        # Run inference
+        test_results = test(
+            model=best_model,
+            test_df=df_test,
+            feature_columns=feature_columns
+        )

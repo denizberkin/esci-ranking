@@ -6,8 +6,8 @@ from rapidfuzz.distance import Levenshtein as rapid_levenshtein
 from utils.preprocess import process_columns, combined_column, tfidf_cosine_sim, \
     prefix_match, postfix_match, additional_features, sentence_transformer_cosine_sim
 from utils.process_color import colour_match, colour_normalize
-from utils.variables import COLUMNS_TO_PROCESS, SCORE_MAP, ROOT_FOLDER
-
+from utils.variables import COLUMNS_TO_PROCESS, SCORE_MAP, ROOT_FOLDER, EMBEDDING_FOLDER
+from utils.enhanced_features import enhanced_feature_extraction
 from utils.logger import log_time
 
 
@@ -51,25 +51,41 @@ def time_additional_features(df) -> tuple[pd.DataFrame, list[str]]:
     return df, names_additional_feature
 
 @log_time
-def time_tfidf_cosine_sim(df) -> tuple[pd.DataFrame, list[str]]:
-    df, names_tfidf_column = tfidf_cosine_sim(df, save_embeddings=True)
+def time_tfidf_cosine_sim(df, 
+                          embedding_folder=None
+                          ) -> tuple[pd.DataFrame, list[str]]:
+    df, names_tfidf_column = tfidf_cosine_sim(df, 
+                                              save_embeddings=True,
+                                              embedding_folder=embedding_folder)
     return df, names_tfidf_column
 
 @log_time
-def time_sentence_transformer_cosine_sim(df):
-    df, names_st_column = sentence_transformer_cosine_sim(df, save_embeddings=True)
+def time_sentence_transformer_cosine_sim(df, 
+                                         embedding_folder=None
+                                         ) -> tuple[pd.DataFrame, list[str]]:
+    df, names_st_column = sentence_transformer_cosine_sim(df, 
+                                                          save_embeddings=True,
+                                                          embedding_folder=embedding_folder)
     return df, names_st_column
 
+@log_time
+def time_enhanced_features(df: pd.DataFrame
+                           ) -> tuple[pd.DataFrame, list[str]]:
+    return enhanced_feature_extraction(df)
 
-def preprocess_pipeline(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+
+def preprocess_pipeline(df: pd.DataFrame,
+                        is_test: bool = False) -> tuple[pd.DataFrame, list[str]]:
     # in the case we comment out columns, for it to not throw errors
     levenshtein_title_column, colour_match_column = [], []
     prefix_match_column, names_st_column = [], []
     postfix_match_column, names_additional_feature = [], []
     names_tfidf_column = []
 
-    print("Start preprocessing pipeline")
-    save_current_features_to = os.path.join(ROOT_FOLDER, "df_without_cosinesims.csv")
+    print(f"Start preprocessing {'test' if is_test else 'training'} pipeline")
+    
+    save_suffix = "test" if is_test else "train"
+    save_current_features_to = os.path.join(ROOT_FOLDER, f"df_without_cosinesims_{save_suffix}.csv")
     if os.path.exists(save_current_features_to):
         # only load the calculated features
         df = pd.read_csv(save_current_features_to)
@@ -105,12 +121,34 @@ def preprocess_pipeline(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
 
         print("Saving upto cosine sim calculations")
         df.to_csv(save_current_features_to, index=False)
+        
 
-    df, names_tfidf_column = time_tfidf_cosine_sim(df)
-    print("TFIDF DONE!!!")
-    df, names_st_column = time_sentence_transformer_cosine_sim(df)
+    if is_test:
+        # Import the variable module to properly handle the global variable
+        from utils.variables import EMBEDDING_FOLDER as default_embedding_folder
+        
+        # Create test-specific embedding folder
+        test_embedding_folder = default_embedding_folder.rstrip('/') + "_test/"
+        if not os.path.exists(test_embedding_folder):
+            os.makedirs(test_embedding_folder)
+            
+        # Temporarily override the embedding folder in the functions
+        df, names_tfidf_column = time_tfidf_cosine_sim(df, embedding_folder=test_embedding_folder)
+        print("TFIDF DONE!!!")
+        df, names_st_column = time_sentence_transformer_cosine_sim(df, embedding_folder=test_embedding_folder)
+    else:
+        # Use the default embedding folder
+        df, names_tfidf_column = time_tfidf_cosine_sim(df)
+        print("TFIDF DONE!!!")
+        df, names_st_column = time_sentence_transformer_cosine_sim(df)
+
+
+    # additional features ?? after saved csvs
+    df, enhanced_feature_names = time_enhanced_features(df)
+
 
     feature_columns = []
+    feature_columns.extend(enhanced_feature_names)
     feature_columns.extend(levenshtein_title_column)
     # feature_columns.extend(colour_match_column)
     # feature_columns.extend(prefix_match_column)

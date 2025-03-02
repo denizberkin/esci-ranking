@@ -10,7 +10,7 @@ ST_MODEL_NAME = "all-MiniLM-L6-v2"
 ST_COS_SIM_FN = "st_cosine_sim.parquet"
 TFIDF_COS_SIM_FN = "tfidf_cosine_sim.parquet"
 
-NDCG_AT_K = 5
+NDCG_AT_K = 3
 
 NUM_THREADS = 6  # if no saved embeddings and cuda not available
 

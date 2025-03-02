@@ -134,20 +134,27 @@ def postfix_match(query: str, feature: str) -> float:
         return 1.0
     return 0.0
 
-
-# re-wrote tfidf to obtain cosine sim matrice - can extract the diagonal to get similarities between query and feature
 def tfidf_cosine_sim(df: pd.DataFrame,
                      save_embeddings: bool = False,
-                     batch_size: int = 1000
+                     batch_size: int = 1000,
+                     embedding_folder: str = None
                      ) -> tuple[pd.DataFrame, list[str]]:
-    """ calculate cosine similarity between query and features """
+    # Use the provided embedding folder or the default one
+    if embedding_folder is None:
+        embedding_folder = EMBEDDING_FOLDER
+    
+    # Create the embedding folder if it doesn't exist
+    if not os.path.exists(embedding_folder):
+        os.makedirs(embedding_folder)
+    
     device = "cuda" if torch.cuda.is_available() else "cpu"
     cos_sim_func = cosine_sim_gpu if device == "cuda" else cosine_sim_by_batch
     
     # Check if we already have pre-calculated cosine similarities
-    if TFIDF_COS_SIM_FN in os.listdir(EMBEDDING_FOLDER):
-        print(f"FOUND CALCULATED {TFIDF_COS_SIM_FN}, loading...")
-        cosine_sims = pd.read_parquet(os.path.join(EMBEDDING_FOLDER, TFIDF_COS_SIM_FN))["tfidf_cosine_sim"].tolist()
+    cos_sim_path = os.path.join(embedding_folder, TFIDF_COS_SIM_FN)
+    if os.path.exists(cos_sim_path):
+        print(f"FOUND CALCULATED {TFIDF_COS_SIM_FN} in {embedding_folder}, loading...")
+        cosine_sims = pd.read_parquet(cos_sim_path)["tfidf_cosine_sim"].tolist()
         len_cosine_sims = len(cosine_sims)
         len_df = len(df[df.columns[0]])
         
@@ -179,7 +186,7 @@ def tfidf_cosine_sim(df: pd.DataFrame,
             # Save the updated similarities
             if save_embeddings:
                 save_df = pd.DataFrame({"tfidf_cosine_sim": cosine_sims, "example_id": df["example_id"][:len(cosine_sims)]})
-                save_df.to_parquet(os.path.join(EMBEDDING_FOLDER, TFIDF_COS_SIM_FN))
+                save_df.to_parquet(cos_sim_path)
         
         df["tfidf_cosine_sim"] = cosine_sims[:len_df]
     
@@ -206,25 +213,36 @@ def tfidf_cosine_sim(df: pd.DataFrame,
         # Save the results
         if save_embeddings:
             save_df = pd.DataFrame({"tfidf_cosine_sim": all_sims, "example_id": df["example_id"][:len(all_sims)]})
-            save_df.to_parquet(os.path.join(EMBEDDING_FOLDER, TFIDF_COS_SIM_FN))
+            save_df.to_parquet(cos_sim_path)
     
-    print("COSSIM FINISHED!!")
+    print("TFIDF COSSIM FINISHED!!")
     return df, ["tfidf_cosine_sim"]
 
 
-# default is https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2, 22.7M params, 384 dim
 def sentence_transformer_cosine_sim(df: pd.DataFrame, 
                                     model_name: str = ST_MODEL_NAME,
-                                    save_embeddings: bool = False
+                                    save_embeddings: bool = False,
+                                    embedding_folder: str = None
                                     ) -> tuple[pd.DataFrame, list[str]]:
-    """ calculate cosine similarity between query and features using sentence transformer """
+    # Use the provided embedding folder or the default one
+    if embedding_folder is None:
+        embedding_folder = EMBEDDING_FOLDER
+    
+    # Create the embedding folder if it doesn't exist
+    if not os.path.exists(embedding_folder):
+        os.makedirs(embedding_folder)
+    
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    cos_sim_found = ST_COS_SIM_FN in os.listdir(EMBEDDING_FOLDER)
-    if os.path.exists(os.path.join(EMBEDDING_FOLDER, "query_embeddings.npy")) and \
-        not cos_sim_found and \
-        len(os.listdir(EMBEDDING_FOLDER)):  # bad check
-        print("LOADING EMBEDDINGS!")  # TODO: timeit
-        query_embeddings, combined_embeddings = load_embeddings()
+    cos_sim_path = os.path.join(embedding_folder, ST_COS_SIM_FN)
+    cos_sim_found = os.path.exists(cos_sim_path)
+    
+    query_embeddings_path = os.path.join(embedding_folder, "query_embeddings.npy")
+    feature_embeddings_path = os.path.join(embedding_folder, "feature_embeddings.npy")
+    
+    if os.path.exists(query_embeddings_path) and os.path.exists(feature_embeddings_path) and not cos_sim_found:
+        print("LOADING EMBEDDINGS!")
+        query_embeddings = np.load(query_embeddings_path, allow_pickle=True)
+        combined_embeddings = np.load(feature_embeddings_path, allow_pickle=True)
         
     elif not cos_sim_found:  # compute them
         print("COMPUTING EMBEDDINGS!")
@@ -240,16 +258,17 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
             combined_embeddings = model.encode(df["combined"].tolist(), show_progress_bar=True)
     
         if save_embeddings:
-            save_embeddings2npy({"query": query_embeddings, 
-                            "feature": combined_embeddings}
-                            )
-    else: print(f"FOUND CALCULATED {ST_COS_SIM_FN}, passing the load of embeddings!")
+            # Save embeddings to the specified folder
+            np.save(query_embeddings_path, query_embeddings)
+            np.save(feature_embeddings_path, combined_embeddings)
+    else: 
+        print(f"FOUND CALCULATED {ST_COS_SIM_FN} in {embedding_folder}, passing the load of embeddings!")
 
     print("STARTING COSSIM!!")
     cos_sim_func = cosine_sim_gpu if device == "cuda" else cosine_sim_by_batch
 
-    if ST_COS_SIM_FN in os.listdir(EMBEDDING_FOLDER):  # if embeddings were saved
-        cosine_sims = pd.read_parquet(os.path.join(EMBEDDING_FOLDER, ST_COS_SIM_FN))["st_cosine_sim"].tolist()
+    if os.path.exists(cos_sim_path):  # if embeddings were saved
+        cosine_sims = pd.read_parquet(cos_sim_path)["st_cosine_sim"].tolist()
         len_cosine_sims = len(cosine_sims)
         len_df = len(df[df.columns[0]])
         if len_df > len_cosine_sims:  # if lens not match, compute the rest and combine with loaded
@@ -257,11 +276,14 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
         df["st_cosine_sim"] = cosine_sims[: len_df]  # covers else: where len_df < len_cosine_sims
     else:  # compute from scratch if nothing is loaded
         df["st_cosine_sim"] = cos_sim_func(query_embeddings, combined_embeddings)[: len(df[df.columns[0]])]  # match and only take the loaded sims
+    
     # save st_cosine_sim column, with example_id to be able to re-track
-    save_df_columns(df, ["st_cosine_sim", "example_id"], ST_COS_SIM_FN)  # save upto len_df again
+    save_df_columns(df, ["st_cosine_sim", "example_id"], ST_COS_SIM_FN, embedding_folder=embedding_folder)
+    
     if not cos_sim_found:
         del query_embeddings, combined_embeddings
-    print("COSSIM FINISHED!!")
+    
+    print("ST COSSIM FINISHED!!")
     return df, ["st_cosine_sim"]
 
 

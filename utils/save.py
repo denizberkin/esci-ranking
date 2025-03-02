@@ -48,8 +48,14 @@ def load_model(fn: str):
     return joblib.load(fn)
 
 
-# save and overwrite the file given df columns
 def save_df_columns(df: pd.DataFrame, 
             columns: list[str],
-            fn: str):
-    df[columns].to_parquet(os.path.join(EMBEDDING_FOLDER, fn), index=False)
+            fn: str,
+            embedding_folder: str = None):
+    # use the provided embedding folder or the default one
+    if embedding_folder is None:
+        embedding_folder = EMBEDDING_FOLDER
+        
+    # create the directory if it doesn't exist
+    os.makedirs(embedding_folder, exist_ok=True)
+    df[columns].to_parquet(os.path.join(embedding_folder, fn), index=False)
