@@ -4,6 +4,8 @@ shopping_queries/
 formatted_esci/
 formatted_csv/
 embeddings/
+embeddings_test/
+models/predictions/
 
 # other ide files
 .vscode/
