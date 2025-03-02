@@ -189,9 +189,9 @@ def tfidf_cosine_sim(df: pd.DataFrame,
         all_sims = []
         tfidf = TfidfVectorizer(max_features=1000, ngram_range=(2, 2), stop_words="english")
         
-        for i in tqdm(range(0, len(df), batch_size), desc="Computing TF-IDF similarities"):
+        for i in tqdm(range(0, len(df), batch_size), desc="computing tf-idf similarities"):
             end_idx = min(i + batch_size, len(df))
-            batch_df = df.iloc[i:end_idx]
+            batch_df = df.iloc[i: end_idx]
             
             q_tfidf = tfidf.fit_transform(batch_df["query"]).toarray()
             f_tfidf = tfidf.transform(batch_df["product_title"]).toarray()
@@ -219,11 +219,14 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
                                     ) -> tuple[pd.DataFrame, list[str]]:
     """ calculate cosine similarity between query and features using sentence transformer """
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    if os.path.exists(EMBEDDING_FOLDER) and len(os.listdir(EMBEDDING_FOLDER)):  # bad check
+    cos_sim_found = ST_COS_SIM_FN in os.listdir(EMBEDDING_FOLDER)
+    if os.path.exists(os.path.join(EMBEDDING_FOLDER, "query_embeddings.npy")) and \
+        not cos_sim_found and \
+        len(os.listdir(EMBEDDING_FOLDER)):  # bad check
         print("LOADING EMBEDDINGS!")  # TODO: timeit
         query_embeddings, combined_embeddings = load_embeddings()
         
-    elif ST_COS_SIM_FN not in os.listdir(EMBEDDING_FOLDER):  # compute them
+    elif not cos_sim_found:  # compute them
         print("COMPUTING EMBEDDINGS!")
         model = SentenceTransformer(model_name, device=device)
         if device == "cpu":  # mp
@@ -256,8 +259,8 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
         df["st_cosine_sim"] = cos_sim_func(query_embeddings, combined_embeddings)[: len(df[df.columns[0]])]  # match and only take the loaded sims
     # save st_cosine_sim column, with example_id to be able to re-track
     save_df_columns(df, ["st_cosine_sim", "example_id"], ST_COS_SIM_FN)  # save upto len_df again
-
-    del query_embeddings, combined_embeddings
+    if not cos_sim_found:
+        del query_embeddings, combined_embeddings
     print("COSSIM FINISHED!!")
     return df, ["st_cosine_sim"]
 
