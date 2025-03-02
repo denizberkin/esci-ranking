@@ -10,7 +10,7 @@ from scipy.stats import kendalltau, weightedtau
 import lightgbm as lgbm
 
 from utils.save import save_model
-from utils.variables import MODEL_PARAMS, MODEL_SAVE_FOLDER
+from utils.variables import MODEL_PARAMS, MODEL_SAVE_FOLDER, NDCG_AT_K
 
 def train(df: pd.DataFrame, feature_columns: list):
     x = df[feature_columns]
@@ -53,13 +53,17 @@ def train(df: pd.DataFrame, feature_columns: list):
             y_pred = model.predict(x_query, num_iteration=model.best_iteration).reshape(1, -1)
             
             # scoring
-            ndcg = ndcg_score(y_true, y_pred, k=3)
+            ndcg = ndcg_score(y_true, y_pred, k=NDCG_AT_K)
 
             y_true_flat = y_true.flatten()
             y_pred_flat = y_pred.flatten()
             
             tau_kendall, _ = kendalltau(y_true_flat, y_pred_flat)
             tau_weighted, _ = weightedtau(y_true_flat, y_pred_flat)
+            if np.isnan(tau_kendall):
+                tau_kendall = np.float64(0.0)
+            if np.isnan(tau_weighted):
+                tau_weighted = np.float64(0.0)
             
             ndcg_scores.append(ndcg)
             kendall_scores.append(tau_kendall)
