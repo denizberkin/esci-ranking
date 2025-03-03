@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import time
 from PIL import Image
+import torch
 
 from inference import test
 from utils.save import load_model, load_df
@@ -15,6 +16,7 @@ from pipeline import preprocess_pipeline
 import sys
 sys.path.append('.')
 
+torch.classes.__path__ = []  # workaround for streamlit warning
 
 st.set_page_config(
     page_title="ESCI Product Ranking Model",
@@ -81,7 +83,7 @@ def run_inference(model_path, test_file, limit):
         return None, None
     
     
-def display_query_results(results, test_df, num_queries=5, num_products=5):
+def display_query_results(results, test_df, num_queries=10, num_products=10):
     if not results or "results_by_query" not in results:
         st.warning("No results to display")
         return
@@ -99,15 +101,16 @@ def display_query_results(results, test_df, num_queries=5, num_products=5):
         col2.metric("Kendall Tau", f"{metrics['avg_kendall_tau']:.4f}")
         col3.metric("Weighted Tau", f"{metrics['avg_weighted_tau']:.4f}")
     
-    sample_size = min(num_queries, len(query_ids))
+    sample_size = min(num_queries, len(query_ids)) 
     sample_query_ids = query_ids[:sample_size]
-    
-    for qid in sample_query_ids:
+    preds, true_labels = [], []
+    for j, qid in enumerate(sample_query_ids):
         query_data = results["results_by_query"][qid]
         query_row = test_df[test_df["query_id"] == qid].iloc[0]
         query_text = query_row["query"]
         
-        st.subheader(f"Query: '{query_text}' (ID: {qid})")
+        if j < 10:
+            st.subheader(f"Query: '{query_text}' (ID: {qid})")
         
         products = []
         for i, (pred, ex_id) in enumerate(zip(query_data["predictions"], query_data["example_ids"])):
@@ -137,8 +140,27 @@ def display_query_results(results, test_df, num_queries=5, num_products=5):
         # Display top N products
         display_products = products[:num_products]
         product_df = pd.DataFrame(display_products)
-        st.dataframe(product_df)
-        st.markdown("---")
+
+        if j < 10:
+            st.dataframe(product_df)
+            st.markdown("---")
+
+        preds.append([p["Score"] for p in products])
+        true_labels.append([p.get("True Label", 0) for p in products])
+
+    # add score vs true label plot (combine them in single plot)
+    fig, ax = plt.subplots(figsize=(10, 8))
+    for i in range(len(preds)):
+        ax.scatter(true_labels[i], preds[i], label=f"Query {i + 1}")
+    ax.set_title("Predicted Score vs True Label")
+    ax.set_xlabel("True Label")
+    ax.set_ylabel("Predicted Score")
+
+    # Display plot
+    st.pyplot(fig)
+
+
+
         
         
 if page == "Model Testing":
@@ -171,7 +193,7 @@ if page == "Model Testing":
             if results is not None:
                 st.success("Inference completed successfully!")
                 # Display query results
-                display_query_results(results, test_df)
+                display_query_results(results, test_df, num_queries=100, num_products=50)
                 
                 # Add a button to download results
                 if "results_by_query" in results:
