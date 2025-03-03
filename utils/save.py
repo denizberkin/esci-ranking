@@ -3,6 +3,8 @@ import joblib
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 from utils.variables import EMBEDDING_FOLDER, ROOT_FOLDER
 
@@ -59,3 +61,25 @@ def save_df_columns(df: pd.DataFrame,
     # create the directory if it doesn't exist
     os.makedirs(embedding_folder, exist_ok=True)
     df[columns].to_parquet(os.path.join(embedding_folder, fn), index=False)
+
+
+def save_vectorizer(queries: np.ndarray, 
+                    fn: str,
+                    embedding_folder: str = None):
+    """ loads embeddings from .npy files, constructs TFIDFVectorizer and saves it to file."""
+    if embedding_folder is None:
+        embedding_folder = EMBEDDING_FOLDER
+    batch_size = 1000
+    len_df = len(queries)
+
+    # save the vectorizer
+    vectorizer = TfidfVectorizer(max_features=1000, ngram_range=(2, 2), stop_words="english")
+    for i in tqdm(range(0, len_df, batch_size), desc="re-fitting vectorizer"):
+        end_idx = min(i + batch_size, len_df)
+        batch = queries[i:end_idx]
+        
+        # Calculate TF-IDF for just this batch
+        q_tfidf = vectorizer.fit(batch)
+
+    joblib.dump(vectorizer, os.path.join(embedding_folder, fn))
+
