@@ -13,8 +13,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 
 from utils.variables import COLUMNS_TO_PROCESS, ST_MODEL_NAME, EMBEDDING_FOLDER, \
-      ST_COS_SIM_FN, TFIDF_COS_SIM_FN, NUM_THREADS
-from utils.save import save_embeddings2npy, load_embeddings, save_df_columns
+      ST_COS_SIM_FN, TFIDF_COS_SIM_FN, NUM_THREADS, STREAMLIT
+from utils.save import save_embeddings2npy, load_embeddings, save_df_columns, load_model
 from utils.logger import log_time
 
 
@@ -157,13 +157,18 @@ def tfidf_cosine_sim(df: pd.DataFrame,
         cosine_sims = pd.read_parquet(cos_sim_path)["tfidf_cosine_sim"].tolist()
         len_cosine_sims = len(cosine_sims)
         len_df = len(df[df.columns[0]])
+        can_load_vectorizer = os.path.exists(os.path.join(EMBEDDING_FOLDER, "vectorizer.pkl"))
         
         # Only calculate additional similarities if needed
         if len_df > len_cosine_sims:
             print(f"Computing additional similarities for {len_df - len_cosine_sims} records...")
             # Create TF-IDF vectorizer just for new data
-            tfidf = TfidfVectorizer(max_features=1000, ngram_range=(2, 2), stop_words="english")
-            
+            if can_load_vectorizer:
+                print("LOADED TFIDF VECTORIZER!")
+                tfidf = load_model(os.path.join(EMBEDDING_FOLDER, "vectorizer.pkl"))
+            else:
+                print("CREATING NEW TFIDF VECTORIZER!")
+                tfidf = TfidfVectorizer(max_features=1000, ngram_range=(2, 2), stop_words="english")
             # Process new data in batches to save memory
             new_sims = []
             for i in range(len_cosine_sims, len_df, batch_size):
@@ -171,9 +176,13 @@ def tfidf_cosine_sim(df: pd.DataFrame,
                 batch_df = df.iloc[i:end_idx]
                 
                 # Calculate TF-IDF for just this batch
-                q_tfidf = tfidf.fit_transform(batch_df["query"]).toarray()
-                f_tfidf = tfidf.transform(batch_df["product_title"]).toarray()
-                
+                if can_load_vectorizer:
+                    q_tfidf = tfidf.transform(batch_df["query"]).toarray()
+                    f_tfidf = tfidf.transform(batch_df["product_title"]).toarray()
+                else:
+                    q_tfidf = tfidf.fit_transform(batch_df["query"]).toarray()
+                    f_tfidf = tfidf.transform(batch_df["product_title"]).toarray()
+
                 # Calculate similarities for this batch
                 batch_sims = cos_sim_func(q_tfidf, f_tfidf)
                 new_sims.extend(batch_sims)
@@ -247,9 +256,9 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
     elif not cos_sim_found:  # compute them
         print("COMPUTING EMBEDDINGS!")
         model = SentenceTransformer(model_name, device=device)
-        if device == "cpu":  # mp
+        if device == "cpu" and not STREAMLIT:  # mp
             print("Embedding with multiprocessing!")
-            pool = model.start_multi_process_pool(["cpu"] * NUM_THREADS)
+            pool = model.start_multi_process_pool(["cpu"] * max(NUM_THREADS - 4, 1))
             query_embeddings = model.encode_multi_process(df["query"].tolist(), pool, chunk_size=100, show_progress_bar=True)
             combined_embeddings = model.encode_multi_process(df["combined"].tolist(), pool, chunk_size=100, show_progress_bar=True)
             model.stop_multi_process_pool(pool)
@@ -278,7 +287,8 @@ def sentence_transformer_cosine_sim(df: pd.DataFrame,
         df["st_cosine_sim"] = cos_sim_func(query_embeddings, combined_embeddings)[: len(df[df.columns[0]])]  # match and only take the loaded sims
     
     # save st_cosine_sim column, with example_id to be able to re-track
-    save_df_columns(df, ["st_cosine_sim", "example_id"], ST_COS_SIM_FN, embedding_folder=embedding_folder)
+    if "test" not in embedding_folder:
+        save_df_columns(df, ["st_cosine_sim", "example_id"], ST_COS_SIM_FN, embedding_folder=embedding_folder)
     
     if not cos_sim_found:
         del query_embeddings, combined_embeddings
@@ -292,7 +302,7 @@ def cosine_sim_by_batch(q_embeddings: np.ndarray,
                             batch_size: int=20000) -> np.ndarray:
     """ relieved from memory constraints """
     similarities = []
-    for i in tqdm(range(0, len(q_embeddings), batch_size), desc="Calculating cossim...", ):
+    for i in tqdm(range(0, len(q_embeddings), batch_size), desc="calculating cossim...", ):
         q_batch = q_embeddings[i:i+batch_size]
         f_batch = f_embeddings[i:i+batch_size]
         batch_similarities = cosine_similarity(q_batch, f_batch)
