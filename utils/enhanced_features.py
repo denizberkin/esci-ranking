@@ -1,12 +1,7 @@
 import re
 import pandas as pd
 import numpy as np
-from collections import Counter
-from sklearn.feature_extraction.text import TfidfVectorizer
-from scipy.spatial.distance import cosine
 from utils.logger import log_time
-from nltk.util import ngrams
-
 
 
 @log_time
@@ -52,7 +47,7 @@ def feature_interactions(df):
     return df, ['st_token_interaction', 'st_substring_interaction', 'st_cosine_sim_squared']
 
 
-"""
+
 @log_time
 def extract_attribute_match(df):
     # common attributes as I did not have much time extracting from df, 
@@ -103,7 +98,7 @@ def extract_attribute_match(df):
     df['attribute_match_score'] = attrs[3]
     
     return df, ['color_match', 'size_match', 'material_match', 'attribute_match_score']
-    """
+
 
 
 def enhanced_feature_extraction(df: pd.DataFrame
@@ -116,7 +111,7 @@ def enhanced_feature_extraction(df: pd.DataFrame
     df, interaction_features = feature_interactions(df)
     feature_columns.extend(interaction_features)
     
-    # df, attribute_features = extract_attribute_match(df)
-    # feature_columns.extend(attribute_features)
+    df, attribute_features = extract_attribute_match(df)
+    feature_columns.extend(attribute_features)
     
     return df, feature_columns
