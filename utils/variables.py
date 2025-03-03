@@ -1,6 +1,6 @@
 import os
 
-
+STREAMLIT = True
 PLOT_FOLDER = "plots/"
 MODEL_SAVE_FOLDER = "models/"
 ROOT_FOLDER = "formatted_esci/"
@@ -12,7 +12,7 @@ TFIDF_COS_SIM_FN = "tfidf_cosine_sim.parquet"
 
 NDCG_AT_K = 3
 
-NUM_THREADS = 6  # if no saved embeddings and cuda not available
+NUM_THREADS = 8  # if no saved embeddings and cuda not available
 
 
 COLUMNS_TO_PROCESS =  [  # "query",    # data leak? 
