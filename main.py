@@ -16,7 +16,6 @@ from pipeline import preprocess_pipeline
 
 from utils.variables import SCORE_MAP, ROOT_FOLDER, COLUMNS_TO_PROCESS
 
-
 pd.options.mode.chained_assignment = None
 
 
@@ -59,7 +58,7 @@ if __name__ == "__main__":
     # Test model if testing
     if args.test:
         test_filenames = [f for f in os.listdir(ROOT_FOLDER) if f.startswith("test")]
-        df_test = load_df(test_filenames[:1])
+        df_test = load_df(test_filenames[:])
         
         print("DF TEST COLUMNS: ", df_test.columns)
         print("DF TEST SHAPE: ", df_test.shape)
